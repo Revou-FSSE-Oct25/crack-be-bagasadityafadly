@@ -1,6 +1,3 @@
-// This file defines your database tables
-// Every table = one "model" block
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,14 +6,256 @@ datasource db {
   provider = "postgresql"
 }
 
-// User table — we'll expand this in authentication phase
+// ─── ENUMS ──────────────────────────────────────────────────────────────────
+// Enums = a fixed list of allowed values (like a dropdown menu)
+
+enum Role {
+  ADMIN        // can manage everything
+  MEMBER       // paying/approved member
+  NON_MEMBER   // just registered, limited access
+}
+
+enum MembershipType {
+  TRIAL      // short free trial
+  MONTHLY    // 1 month
+  QUARTERLY  // 3 months
+  ANNUAL     // 12 months
+}
+
+enum MembershipStatus {
+  PENDING    // payment not confirmed yet
+  ACTIVE     // currently valid
+  EXPIRED    // past the end date
+  CANCELLED  // user or admin cancelled it
+}
+
+enum ProgramCategory {
+  FAT_LOSS      // weight loss classes
+  MUSCLE_GAIN   // hypertrophy training
+  STRENGTH      // powerlifting / barbell
+  MOBILITY      // stretching / yoga / recovery
+  CARDIO        // running / cycling
+  GENERAL       // mixed / general fitness
+}
+
+enum ScheduleStatus {
+  ACTIVE     // open for booking
+  CANCELLED  // class cancelled
+  FULL       // no spots left
+  COMPLETED  // class already happened
+}
+
+enum BookingStatus {
+  PENDING    // reserved but not confirmed
+  CONFIRMED  // confirmed and ready
+  CANCELLED  // user or admin cancelled
+  COMPLETED  // class attended
+}
+
+enum AttendanceStatus {
+  PRESENT  // showed up on time
+  ABSENT   // did not show up
+  LATE     // showed up late
+}
+
+// ─── USER ────────────────────────────────────────────────────────────────────
+// Every person who uses the app (admin, member, or non-member)
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String?
+  id        String   @id @default(uuid())  // UUID = unique random ID like "a1b2c3d4-..."
+  email     String   @unique               // no two users can share an email
+  password  String                         // hashed (never plain text)
+  name      String?                        // ? means optional
+  phone     String?
+  role      Role     @default(NON_MEMBER)  // new users start as NON_MEMBER
+  avatarUrl String?                        // profile picture URL
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("users")
+  // Relations — these let Prisma JOIN tables together
+  memberships Membership[]  // one user → many memberships
+  bookings    Booking[]     // one user → many bookings
+  attendances Attendance[]  // one user → many attendance records
+  rewards     Reward[]      // one user → many reward points
+  userBadges  UserBadge[]   // one user → many badges (through UserBadge)
+
+  @@map("users")  // the actual PostgreSQL table name
+}
+
+// ─── MEMBERSHIP ──────────────────────────────────────────────────────────────
+// Tracks a user's gym subscription (can have multiple over time)
+model Membership {
+  id        String           @id @default(uuid())
+  userId    String                                  // which user owns this
+  type      MembershipType
+  status    MembershipStatus @default(PENDING)
+  startDate DateTime
+  endDate   DateTime
+  price     Decimal          @db.Decimal(10, 2)    // stores money values precisely
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign key: userId points to a User.id
+  // onDelete: Cascade = if user is deleted, delete their memberships too
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+// ─── TRAINER ─────────────────────────────────────────────────────────────────
+// Gym instructors/coaches
+model Trainer {
+  id         String   @id @default(uuid())
+  name       String
+  email      String   @unique
+  phone      String?
+  speciality String                   // e.g. "Strength & Conditioning"
+  bio        String?                  // short description
+  avatarUrl  String?
+  isActive   Boolean  @default(true)  // soft delete: set false instead of deleting
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules Schedule[]  // one trainer → many schedules
+
+  @@map("trainers")
+}
+
+// ─── PROGRAM ─────────────────────────────────────────────────────────────────
+// A type of class (e.g. "Fat Burn Express" — not a specific time slot)
+model Program {
+  id          String          @id @default(uuid())
+  name        String          @unique
+  description String?
+  category    ProgramCategory
+  duration    Int                       // in minutes
+  maxCapacity Int             @default(20)  // max students per session
+  price       Decimal?        @db.Decimal(10, 2)  // cost per session
+  imageUrl    String?
+  isActive    Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules Schedule[]  // one program → many scheduled sessions
+
+  @@map("programs")
+}
+
+// ─── SCHEDULE ────────────────────────────────────────────────────────────────
+// A specific class session: which trainer, which program, what time
+// Example: Sarah teaches Fat Burn Express on Monday at 6am
+model Schedule {
+  id        String         @id @default(uuid())
+  trainerId String
+  programId String
+  startTime DateTime
+  endTime   DateTime
+  status    ScheduleStatus @default(ACTIVE)
+  room      String?        // e.g. "Studio A", "Weight Room"
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A schedule belongs to ONE trainer and ONE program
+  trainer  Trainer   @relation(fields: [trainerId], references: [id])
+  program  Program   @relation(fields: [programId], references: [id])
+  bookings Booking[] // but can have MANY bookings (many students sign up)
+
+  @@map("schedules")
+}
+
+// ─── BOOKING ─────────────────────────────────────────────────────────────────
+// A user reserving a spot in a schedule
+// Example: John books Sarah's Fat Burn class on Monday at 6am
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String
+  scheduleId  String
+  status      BookingStatus @default(PENDING)
+  bookedAt    DateTime      @default(now())
+  cancelledAt DateTime?     // only set if booking is cancelled
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
+  attendance Attendance? // one booking = at most one attendance record
+
+  // Unique constraint: a user can only book the SAME schedule ONCE
+  // (prevents double-booking the same class)
+  @@unique([userId, scheduleId])
+  @@map("bookings")
+}
+
+// ─── ATTENDANCE ──────────────────────────────────────────────────────────────
+// Records whether a user actually showed up to a class they booked
+model Attendance {
+  id          String           @id @default(uuid())
+  bookingId   String           @unique  // one attendance per booking
+  userId      String
+  checkedInAt DateTime?                 // when they scanned in (null if absent)
+  status      AttendanceStatus @default(ABSENT)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@map("attendances")
+}
+
+// ─── REWARD ──────────────────────────────────────────────────────────────────
+// Points a user earns (each row = one reward event)
+// Example: "John attended a class → +10 points"
+model Reward {
+  id     String @id @default(uuid())
+  userId String
+  points Int    @default(0)
+  reason String  // e.g. "Attended Fat Burn Express class"
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("rewards")
+}
+
+// ─── BADGE ───────────────────────────────────────────────────────────────────
+// Achievement badges (like trophies — "First Class", "Week Warrior")
+model Badge {
+  id          String @id @default(uuid())
+  name        String @unique
+  description String?
+  imageUrl    String?
+  requirement String  // explains how to earn it
+
+  createdAt DateTime @default(now())
+
+  userBadges UserBadge[]  // which users have earned this badge
+
+  @@map("badges")
+}
+
+// ─── USER BADGE (Join Table) ──────────────────────────────────────────────────
+// Connects Users and Badges (many-to-many relationship)
+// A user can earn many badges, and a badge can be earned by many users
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  awardedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id])
+
+  // A user can only earn each specific badge ONCE
+  @@unique([userId, badgeId])
+  @@map("user_badges")
 }
