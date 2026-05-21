@@ -8,21 +8,53 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AllExceptionsFilter = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 let AllExceptionsFilter = class AllExceptionsFilter {
     catch(exception, host) {
         const ctx = host.switchToHttp();
         const response = ctx.getResponse();
         const request = ctx.getRequest();
-        const status = exception instanceof common_1.HttpException
-            ? exception.getStatus()
-            : common_1.HttpStatus.INTERNAL_SERVER_ERROR;
-        const message = exception instanceof common_1.HttpException
-            ? exception.getResponse()
-            : 'Internal server error';
+        let status;
+        let message;
+        if (exception instanceof common_1.HttpException) {
+            status = exception.getStatus();
+            const res = exception.getResponse();
+            if (typeof res === 'string') {
+                message = res;
+            }
+            else if (Array.isArray(res.message)) {
+                message = res.message;
+            }
+            else if (typeof res.message === 'string') {
+                message = res.message;
+            }
+            else {
+                message = 'An error occurred';
+            }
+        }
+        else if (exception instanceof client_1.Prisma.PrismaClientKnownRequestError) {
+            switch (exception.code) {
+                case 'P2002':
+                    status = common_1.HttpStatus.CONFLICT;
+                    message = 'A record with this value already exists';
+                    break;
+                case 'P2025':
+                    status = common_1.HttpStatus.NOT_FOUND;
+                    message = 'Record not found';
+                    break;
+                default:
+                    status = common_1.HttpStatus.INTERNAL_SERVER_ERROR;
+                    message = 'Database error';
+            }
+        }
+        else {
+            status = common_1.HttpStatus.INTERNAL_SERVER_ERROR;
+            message = 'Internal server error';
+        }
         response.status(status).json({
             success: false,
             statusCode: status,
-            message: typeof message === 'string' ? message : message.message,
+            message,
             timestamp: new Date().toISOString(),
             path: request.url,
         });

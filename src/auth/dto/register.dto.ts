@@ -5,11 +5,11 @@ export class RegisterDto {
   @IsString()
   @MinLength(2, { message: 'Name must be at least 2 characters' })
   @MaxLength(50, { message: 'Name must not exceed 50 characters' })
-  name: string;
+  name!: string;
 
   @IsNotEmpty({ message: 'Email is required' })
   @IsEmail({}, { message: 'Invalid email format' })
-  email: string;
+  email!: string;
 
   @IsNotEmpty({ message: 'Password is required' })
   @IsString()
@@ -19,5 +19,5 @@ export class RegisterDto {
     message:
       'Password must contain at least one uppercase letter, one lowercase letter, and one number',
   })
-  password: string;
+  password!: string;
 }
