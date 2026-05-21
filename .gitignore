@@ -1,5 +1,19 @@
+# Dependencies
 node_modules
-# Keep environment variables out of version control
+
+# Environment variables — NEVER commit secrets
 .env
 
+# Prisma generated
 /generated/prisma
+
+# NestJS build output
+dist
+
+# macOS system files — created automatically by Finder, never commit
+.DS_Store
+**/.DS_Store
+
+# Editor folders
+.vscode
+.idea
