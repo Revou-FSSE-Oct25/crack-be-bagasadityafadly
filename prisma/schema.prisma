@@ -152,7 +152,8 @@ model Trainer {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  schedules Schedule[]
+  schedules  Schedule[]
+  ptBookings Booking[]
 
   @@map("trainers")
 }
@@ -196,6 +197,7 @@ model Booking {
   id          String        @id @default(cuid())
   userId      String        @map("user_id")
   scheduleId  String?       @map("schedule_id")
+  trainerId   String?       @map("trainer_id")
   type        BookingType
   status      BookingStatus @default(PENDING)
   bookingDate DateTime      @map("booking_date")
@@ -206,8 +208,14 @@ model Booking {
 
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   schedule       Schedule?      @relation(fields: [scheduleId], references: [id])
+  trainer        Trainer?       @relation(fields: [trainerId], references: [id])
   attendanceLogs AttendanceLog[]
 
+  // Prevents a user from booking the exact same schedule twice.
+  // NOTE: PostgreSQL treats NULL != NULL in unique constraints, so
+  // GYM bookings (scheduleId = null) are intentionally NOT covered here —
+  // a user can book the gym on multiple different days.
+  @@unique([userId, scheduleId])
   @@map("bookings")
 }
 
