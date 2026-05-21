@@ -4,14 +4,21 @@ import {
   ConflictException,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { BookingStatus, BookingType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CalendarService } from '../calendar/calendar.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
 @Injectable()
 export class BookingsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private calendarService: CalendarService,
+  ) {}
 
   // ─────────────────────────────────────────────────────────────────
   // CREATE BOOKING — the main booking flow
@@ -77,16 +84,24 @@ export class BookingsService {
     // No capacity limit. No schedule. Just record that the user
     // wants to visit on a specific date.
     if (dto.type === BookingType.GYM) {
-      return this.prisma.booking.create({
+      const booking = await this.prisma.booking.create({
         data: {
           userId,
           type: BookingType.GYM,
-          status: BookingStatus.CONFIRMED, // GYM bookings auto-confirm
+          status: BookingStatus.CONFIRMED,
           bookingDate,
           notes: dto.notes,
         },
         select: bookingSelect,
       });
+
+      // Fire-and-forget: sync to Google Calendar if user has connected it.
+      // The booking is already saved — a calendar failure must NOT undo it.
+      this.calendarService.createEvent(userId, booking.id).catch((err) =>
+        this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${err.message}`),
+      );
+
+      return booking;
     }
 
     // ── STEP 5: CLASS / PT booking — transaction path ─────────────
@@ -111,7 +126,10 @@ export class BookingsService {
     // net: even if two transactions race perfectly, the DB will reject
     // the second INSERT with a P2002 unique violation.
     //
-    return this.prisma.$transaction(async (tx) => {
+    // Capture the booking outside $transaction so we can sync AFTER it commits.
+    // Calling createEvent inside the transaction would be wrong: if Google fails,
+    // it would roll back the booking too. Calendar sync is best-effort only.
+    const booking = await this.prisma.$transaction(async (tx) => {
       // 5a. Load the schedule with its class (for capacity) and trainer
       const schedule = await tx.schedule.findUnique({
         where: { id: dto.scheduleId },
@@ -178,6 +196,14 @@ export class BookingsService {
 
       return booking;
     });
+
+    // Transaction is committed — booking is permanent in the DB.
+    // Now safely attempt Google Calendar sync.
+    this.calendarService.createEvent(userId, booking.id).catch((err) =>
+      this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${err.message}`),
+    );
+
+    return booking;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -230,6 +256,7 @@ export class BookingsService {
         status: true,
         bookingDate: true,
         type: true,
+        googleEventId: true, // needed to clean up the calendar event on cancel
       },
     });
 
@@ -254,11 +281,20 @@ export class BookingsService {
       );
     }
 
-    return this.prisma.booking.update({
+    const cancelled = await this.prisma.booking.update({
       where: { id: bookingId },
       data: { status: BookingStatus.CANCELLED },
       select: bookingSelect,
     });
+
+    // Remove the calendar event if one was created for this booking.
+    if (booking.googleEventId) {
+      this.calendarService.deleteEvent(userId, booking.googleEventId).catch((err) =>
+        this.logger.warn(`Calendar event deletion failed for booking ${bookingId}: ${err.message}`),
+      );
+    }
+
+    return cancelled;
   }
 }
 
@@ -277,6 +313,7 @@ const bookingSelect = {
   status: true,
   bookingDate: true,
   notes: true,
+  googleEventId: true, // null until user connects Google Calendar
   createdAt: true,
   schedule: {
     select: {
