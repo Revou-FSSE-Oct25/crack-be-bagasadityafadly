@@ -16,10 +16,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
+    const secret = configService.get<string>('jwt.secret');
+
+    // Fail fast at startup — if JWT_SECRET is missing, secretOrKey would be
+    // undefined and passport-jwt would silently accept ANY token regardless
+    // of signature, making the entire auth layer meaningless.
+    if (!secret) {
+      throw new Error(
+        'JWT_SECRET is not set. Add it to your .env file before starting the server.',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('jwt.secret')!,
+      secretOrKey: secret,
     });
   }
 
