@@ -95,13 +95,21 @@ export class BookingsService {
         select: bookingSelect,
       });
 
-      // Fire-and-forget: sync to Google Calendar if user has connected it.
-      // The booking is already saved — a calendar failure must NOT undo it.
-      this.calendarService.createEvent(userId, booking.id).catch((err) =>
-        this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${err.message}`),
-      );
+      // Attempt Google Calendar sync NOW (awaited).
+      // If it fails, we log the warning but still return the booking —
+      // the booking is permanent regardless of whether calendar sync works.
+      try {
+        await this.calendarService.createEvent(userId, booking.id);
+      } catch (err) {
+        this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${(err as Error).message}`);
+      }
 
-      return booking;
+      // Re-fetch the booking so the response includes the googleEventId
+      // that createEvent() wrote to the DB (or null if sync failed/skipped).
+      return this.prisma.booking.findUnique({
+        where: { id: booking.id },
+        select: bookingSelect,
+      });
     }
 
     // ── STEP 5: CLASS / PT booking — transaction path ─────────────
@@ -198,12 +206,21 @@ export class BookingsService {
     });
 
     // Transaction is committed — booking is permanent in the DB.
-    // Now safely attempt Google Calendar sync.
-    this.calendarService.createEvent(userId, booking.id).catch((err) =>
-      this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${err.message}`),
-    );
+    // Attempt Google Calendar sync NOW (awaited).
+    // If it fails, we log the warning but still return the booking —
+    // a calendar failure must never roll back or hide a confirmed booking.
+    try {
+      await this.calendarService.createEvent(userId, booking.id);
+    } catch (err) {
+      this.logger.warn(`Calendar sync failed for booking ${booking.id}: ${(err as Error).message}`);
+    }
 
-    return booking;
+    // Re-fetch the booking so the response includes the googleEventId
+    // that createEvent() wrote to the DB (or null if sync failed/skipped).
+    return this.prisma.booking.findUnique({
+      where: { id: booking.id },
+      select: bookingSelect,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
