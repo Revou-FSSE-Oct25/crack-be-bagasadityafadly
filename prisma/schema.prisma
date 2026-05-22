@@ -112,6 +112,11 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  // Google Calendar OAuth tokens (null = user has not connected Google Calendar)
+  googleAccessToken  String?   @map("google_access_token")
+  googleRefreshToken String?   @map("google_refresh_token")
+  googleTokenExpiry  DateTime? @map("google_token_expiry")
+
   memberships       Membership[]
   bookings          Booking[]
   xpHistories       XpHistory[]
@@ -202,9 +207,12 @@ model Booking {
   status      BookingStatus @default(PENDING)
   bookingDate DateTime      @map("booking_date")
   notes       String?
-  qrCode      String?       @unique @map("qr_code")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  qrCode        String?       @unique @map("qr_code")
+  // Set after a Google Calendar event is created for this booking.
+  // Null if the user has not connected Google Calendar or if sync failed.
+  googleEventId String?       @map("google_event_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   schedule       Schedule?      @relation(fields: [scheduleId], references: [id])
