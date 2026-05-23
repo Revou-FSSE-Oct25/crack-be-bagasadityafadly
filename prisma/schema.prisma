@@ -112,6 +112,10 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  // Streak milestone flags — set automatically when streak hits 3 / 30 days
+  bronzeBorderUnlocked Boolean  @default(false) @map("bronze_border_unlocked")
+  canApplyAsPT         Boolean  @default(false) @map("can_apply_as_pt")
+
   // Google Calendar OAuth tokens (null = user has not connected Google Calendar)
   googleAccessToken  String?   @map("google_access_token")
   googleRefreshToken String?   @map("google_refresh_token")
@@ -300,6 +304,8 @@ model UserReward {
   userId     String   @map("user_id")
   rewardId   String   @map("reward_id")
   redeemedAt DateTime @default(now()) @map("redeemed_at")
+  // Coupon code generated for streak milestone rewards (e.g. 7-day Free Protein Drink)
+  couponCode String?  @map("coupon_code")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   reward Reward @relation(fields: [rewardId], references: [id])
