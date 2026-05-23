@@ -23,7 +23,7 @@ export class XpController {
   // ─────────────────────────────────────────────────────────────────
   @Get('leaderboard')
   getLeaderboard(@Query('limit') limit?: string) {
-    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    const parsedLimit = Math.min(100, Math.max(1, limit ? parseInt(limit, 10) : 10));
     return this.xpService.getLeaderboard(parsedLimit);
   }
 }
