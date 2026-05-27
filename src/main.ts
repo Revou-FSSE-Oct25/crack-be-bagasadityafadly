@@ -19,7 +19,7 @@ async function bootstrap() {
 
   // CORS — allow only the frontend origin
   app.enableCors({
-    origin: configService.get<string>('frontend.url'),
+    origin: configService.get<string>('FRONTEND_URL'),
     credentials: true,
   });
 
@@ -41,8 +41,8 @@ async function bootstrap() {
   // Global response wrapper
   app.useGlobalInterceptors(new ResponseInterceptor());
 
-  const port = configService.get<number>('port') ?? 3000;
-  await app.listen(port);
+  const port = configService.get<number>('port') ?? 3002;
+  await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 Server running on http://localhost:${port}/api/v1`);
 }
