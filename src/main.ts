@@ -18,9 +18,10 @@ async function bootstrap() {
   // Gzip compression
   app.use(compression());
 
-  // CORS — allow only the frontend origin
+  // CORS — allow only the frontend origin (strip trailing slash if present)
+  const frontendUrl = (configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3002').replace(/\/$/, '');
   app.enableCors({
-    origin: configService.get<string>('FRONTEND_URL'),
+    origin: frontendUrl,
     credentials: true,
   });
 
