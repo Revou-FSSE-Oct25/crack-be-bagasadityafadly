@@ -8,6 +8,7 @@ import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   AssignMembershipDto,
   CreateClassDto,
@@ -22,7 +23,7 @@ import {
 @ApiBearerAuth('JWT-auth')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
+@Roles(Role.ADMIN, Role.ADMINISTRATOR)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -43,11 +44,15 @@ export class AdminController {
   }
 
   @Patch('users/:id/role')
-  @ApiOperation({ summary: '⭐ Change a user role (ADMIN / MEMBER / NON_MEMBER)' })
+  @ApiOperation({ summary: '⭐ Change a user role — ADMINISTRATOR: any role | ADMIN: NON_MEMBER→MEMBER only' })
   @ApiParam({ name: 'id', description: 'User ID (from GET /admin/users)' })
-  @ApiBody({ schema: { example: { role: 'ADMIN' } } })
-  updateUserRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
-    return this.adminService.updateUserRole(id, dto.role);
+  @ApiBody({ schema: { example: { role: 'MEMBER' } } })
+  updateUserRole(
+    @CurrentUser() requester: { id: string; role: Role },
+    @Param('id') id: string,
+    @Body() dto: UpdateUserRoleDto,
+  ) {
+    return this.adminService.updateUserRole(requester.id, requester.role, id, dto.role);
   }
 
   @Post('users/:id/membership')

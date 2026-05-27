@@ -32,10 +32,11 @@ export class BookingsController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string; role: string },
     @Body() dto: CreateBookingDto,
   ) {
-    return this.bookingsService.createBooking(user.id, dto);
+    // Pass role so ADMIN/ADMINISTRATOR bypass the membership requirement
+    return this.bookingsService.createBooking(user.id, dto, user.role as any);
   }
 
   // GET /bookings/my  (requires login)

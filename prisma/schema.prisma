@@ -18,6 +18,7 @@ datasource db {
 // =============================================================================
 
 enum Role {
+  ADMINISTRATOR
   ADMIN
   MEMBER
   NON_MEMBER

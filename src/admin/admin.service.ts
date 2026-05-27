@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, MembershipStatus, MembershipType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -63,15 +63,45 @@ export class AdminService {
     });
   }
 
-  async updateUserRole(userId: string, role: Role) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+  async updateUserRole(requesterId: string, requesterRole: Role, targetUserId: string, newRole: Role) {
+    // ── Permission rules ───────────────────────────────────────────────────
+    // ADMINISTRATOR: can assign any role (including ADMIN / ADMINISTRATOR)
+    // ADMIN: can only promote NON_MEMBER → MEMBER (nothing else)
 
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { role },
-      select: { id: true, name: true, email: true, role: true },
-    });
+    if (requesterRole === Role.ADMIN) {
+      // ADMIN cannot change their own role (safety — avoids self-demotion)
+      if (requesterId === targetUserId) {
+        throw new ForbiddenException('You cannot change your own role');
+      }
+      // ADMIN can only set the target role to MEMBER
+      if (newRole !== Role.MEMBER) {
+        throw new ForbiddenException('Admins can only promote NON_MEMBER users to MEMBER');
+      }
+      // ADMIN can only promote from NON_MEMBER (not demote an existing MEMBER or ADMIN)
+      const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+      if (!target) throw new NotFoundException('User not found');
+      if (target.role !== Role.NON_MEMBER) {
+        throw new ForbiddenException('Admins can only promote NON_MEMBER users to MEMBER');
+      }
+      return this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { role: newRole },
+        select: { id: true, name: true, email: true, role: true },
+      });
+    }
+
+    // ADMINISTRATOR: full power — any target, any role, including changing own role
+    if (requesterRole === Role.ADMINISTRATOR) {
+      const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+      if (!user) throw new NotFoundException('User not found');
+      return this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { role: newRole },
+        select: { id: true, name: true, email: true, role: true },
+      });
+    }
+
+    throw new ForbiddenException('Insufficient permissions');
   }
 
   async assignMembership(userId: string, type: MembershipType, durationDays: number) {

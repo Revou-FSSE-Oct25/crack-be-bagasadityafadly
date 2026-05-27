@@ -39,7 +39,7 @@ export class BookingsService {
   // Steps 3a–3d are wrapped in $transaction so they are ATOMIC.
   // No other request can sneak in between the capacity check and the insert.
   // ─────────────────────────────────────────────────────────────────
-  async createBooking(userId: string, dto: CreateBookingDto) {
+  async createBooking(userId: string, dto: CreateBookingDto, userRole?: Role) {
     // ── STEP 1: Field-level cross-validation ──────────────────────
     // The DTO validates individual fields, but cross-field rules
     // (e.g. "if type is PT then trainerId is required") must be
@@ -68,7 +68,11 @@ export class BookingsService {
     // ── STEP 3: Membership check (CLASS and PT only) ──────────────
     // GYM bookings are open to everyone. CLASS and PT require
     // an active paid membership.
-    if (dto.type !== BookingType.GYM) {
+    // ADMIN and ADMINISTRATOR roles bypass the membership requirement —
+    // they can book any type using their own account for management purposes.
+    const isStaff = userRole === Role.ADMIN || userRole === Role.ADMINISTRATOR;
+
+    if (dto.type !== BookingType.GYM && !isStaff) {
       const activeMembership = await this.prisma.membership.findFirst({
         where: {
           userId,
