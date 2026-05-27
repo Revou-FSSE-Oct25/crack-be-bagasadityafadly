@@ -74,9 +74,6 @@ Gymora is a full-stack gym management application. This repository contains the 
 
 ## Database Design
 
-> 📸 **Place your database schema screenshot below.**  
-> Recommended: open **Prisma Studio** (`npx prisma studio`) or export an ERD from [dbdiagram.io](https://dbdiagram.io), take a screenshot, save it as ``, and replace the placeholder below.
-
 <!-- ================================================================
      SCREENSHOT PLACEHOLDER
      1. Create the folder:   mkdir -p docs
@@ -84,7 +81,7 @@ Gymora is a full-stack gym management application. This repository contains the 
      3. The line below will then display it automatically
      ================================================================ -->
 
-![Database Schema — Entity Relationship Diagram](docs/db-schema.png)
+![Database Schema — Entity Relationship Diagram](assets/image1.png)
 
 *Entity-Relationship Diagram — 16 tables, their columns, data types, and foreign-key relationships.*
 
@@ -863,7 +860,7 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'admin@gymora.com';
 |---|---|
 | **Frontend repo** | [crack-fe-bagasadityafadly](../crack-fe-bagasadityafadly) — Next.js 15 on Vercel |
 | **Live frontend** | [https://crack-fe-bagasadityafadly.vercel.app](https://crack-fe-bagasadityafadly.vercel.app) |
-| **Live API docs** | [https://crack-be-bagasadityafadly-1.onrender.com](https://crack-be-bagasadityafadly-1.onrender.com) |
+| **Live API docs** | [https://crack-be-bagasadityafadly-1.onrender.com/api/docs](https://crack-be-bagasadityafadly-1.onrender.com/api/docs) |
 | **Database** | Supabase — PostgreSQL 15, AWS ap-southeast-2 |
 
 ---
