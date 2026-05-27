@@ -65,14 +65,20 @@ export class BookingsService {
       throw new BadRequestException('Booking date must be in the future');
     }
 
-    // ── STEP 3: Membership check (CLASS and PT only) ──────────────
-    // GYM bookings are open to everyone. CLASS and PT require
-    // an active paid membership.
-    // ADMIN and ADMINISTRATOR roles bypass the membership requirement —
-    // they can book any type using their own account for management purposes.
-    const isStaff = userRole === Role.ADMIN || userRole === Role.ADMINISTRATOR;
+    // ── STEP 3: Staff check — ADMIN and ADMINISTRATOR cannot book ──
+    // Admin roles are for managing the gym, not for making personal bookings.
+    // If someone with an admin role wants to book, they must use a separate
+    // member account.
+    if (userRole === Role.ADMIN || userRole === Role.ADMINISTRATOR) {
+      throw new ForbiddenException(
+        'Admin accounts cannot make bookings. Please use a personal member account to book sessions.',
+      );
+    }
 
-    if (dto.type !== BookingType.GYM && !isStaff) {
+    // ── STEP 4: Membership check (CLASS and PT only) ───────────────
+    // GYM bookings are open to all members. CLASS and PT require
+    // an active paid membership.
+    if (dto.type !== BookingType.GYM) {
       const activeMembership = await this.prisma.membership.findFirst({
         where: {
           userId,
