@@ -116,6 +116,10 @@ model User {
   bronzeBorderUnlocked Boolean  @default(false) @map("bronze_border_unlocked")
   canApplyAsPT         Boolean  @default(false) @map("can_apply_as_pt")
 
+  // Password reset (null = no pending reset request)
+  resetToken       String?   @unique @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+
   // Google Calendar OAuth tokens (null = user has not connected Google Calendar)
   googleAccessToken  String?   @map("google_access_token")
   googleRefreshToken String?   @map("google_refresh_token")

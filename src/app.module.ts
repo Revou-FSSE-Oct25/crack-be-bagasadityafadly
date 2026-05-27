@@ -22,6 +22,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ChallengesModule } from './challenges/challenges.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { CalendarModule } from './calendar/calendar.module';
     NotificationsModule,
     ChallengesModule,
     CalendarModule,
+    AdminModule,
   ],
   controllers: [AppController],
 })

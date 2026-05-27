@@ -6,10 +6,13 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { BookingStatus, BookingType, Prisma } from '@prisma/client';
+import { BookingStatus, BookingType, MembershipStatus, MembershipType, Prisma, Role } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { GuestBookingDto, GuestPlanType } from './dto/guest-booking.dto';
 
 @Injectable()
 export class BookingsService {
@@ -18,6 +21,7 @@ export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private calendarService: CalendarService,
+    private jwtService: JwtService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────
@@ -312,6 +316,166 @@ export class BookingsService {
     }
 
     return cancelled;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // GUEST BOOKING — public, no JWT required
+  //
+  // Three supported paths:
+  //
+  //  A. Anonymous  — no email provided (NONE plan only)
+  //     Creates a one-time guest record so the booking FK is satisfied.
+  //     Returns QR code but NO JWT — the guest cannot log in later.
+  //
+  //  B. Register   — email + password, no existing account
+  //     Creates the account, assigns membership, books, returns JWT.
+  //
+  //  C. Login      — email + password, existing account
+  //     Verifies password, assigns membership if needed, books, returns JWT.
+  // ─────────────────────────────────────────────────────────────────
+  async guestBook(dto: GuestBookingDto) {
+    let user!: { id: string; name: string; email: string; password: string; role: Role };
+    let isNewUser = false;
+    let isAnonymous = false;
+
+    // ── PATH A: Anonymous (no email) ──────────────────────────────
+    if (!dto.email) {
+      // Paid plans require an account — enforce this at the service layer
+      // so the backend stays consistent even if the frontend sends a bad request.
+      if (dto.planType !== GuestPlanType.NONE) {
+        throw new BadRequestException(
+          'An email and password are required to sign up for a membership plan.',
+        );
+      }
+
+      // Name is required even for anonymous so we can display it on the QR screen.
+      if (!dto.name || dto.name.trim().length < 2) {
+        throw new BadRequestException('Name is required for gym bookings.');
+      }
+
+      // Create a throwaway guest record whose email is never exposed.
+      // We use a random suffix so it never collides.
+      const guestEmail = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 9)}@gymora.guest`;
+      const randomPassword = await bcrypt.hash(Math.random().toString(36), 12);
+
+      user = await this.prisma.user.create({
+        data: {
+          name: dto.name.trim(),
+          email: guestEmail,
+          password: randomPassword,
+          role: Role.NON_MEMBER,
+        },
+      });
+      isNewUser = true;
+      isAnonymous = true;
+
+    } else {
+      // ── PATH B / C: Email provided ────────────────────────────
+      if (!dto.password) {
+        throw new BadRequestException('Password is required when an email is provided.');
+      }
+
+      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+
+      if (!existing) {
+        // PATH B — new account
+        if (!dto.name || dto.name.trim().length < 2) {
+          throw new BadRequestException('Full name is required when creating a new account.');
+        }
+
+        const hashedPassword = await bcrypt.hash(dto.password, 12);
+        user = await this.prisma.user.create({
+          data: {
+            name: dto.name.trim(),
+            email: dto.email,
+            password: hashedPassword,
+            role: Role.NON_MEMBER,
+          },
+        });
+        isNewUser = true;
+      } else {
+        // PATH C — existing account (login)
+        const isMatch = await bcrypt.compare(dto.password, existing.password);
+        if (!isMatch) {
+          throw new BadRequestException(
+            'An account with this email already exists. Please use your existing password or use "Forgot Password".',
+          );
+        }
+        user = existing;
+      }
+    }
+
+    // ── Assign membership plan (TRIAL / BASIC / PREMIUM only) ────
+    if (dto.planType !== GuestPlanType.NONE) {
+      await this.prisma.membership.updateMany({
+        where: { userId: user.id, status: MembershipStatus.ACTIVE },
+        data: { status: MembershipStatus.CANCELLED },
+      });
+
+      const durationDays: Record<string, number> = {
+        TRIAL: 14, BASIC: 30, PREMIUM: 30,
+      };
+
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + (durationDays[dto.planType] ?? 30));
+
+      await this.prisma.membership.create({
+        data: {
+          userId: user.id,
+          type: dto.planType as MembershipType,
+          status: MembershipStatus.ACTIVE,
+          startDate,
+          endDate,
+        },
+      });
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { role: Role.MEMBER },
+      });
+      user = (await this.prisma.user.findUnique({ where: { id: user.id } })) ?? user;
+    }
+
+    // ── Parse visit date + hour ───────────────────────────────────
+    const [year, month, day] = dto.visitDate.split('-').map(Number);
+    const bookingDate = new Date(year, month - 1, day, dto.visitHour, 0, 0);
+
+    if (bookingDate <= new Date()) {
+      throw new BadRequestException('Visit date must be in the future');
+    }
+
+    // ── Create the GYM booking ────────────────────────────────────
+    const booking = await this.prisma.booking.create({
+      data: {
+        userId: user.id,
+        type: BookingType.GYM,
+        status: BookingStatus.CONFIRMED,
+        bookingDate,
+      },
+      select: bookingSelect,
+    });
+
+    // ── Build response ────────────────────────────────────────────
+    // Anonymous users get no JWT — they cannot log in later.
+    const access_token = isAnonymous
+      ? null
+      : this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+
+    return {
+      isNewUser,
+      isAnonymous,
+      access_token,
+      // Expose null email so the frontend knows not to show "log in with X"
+      user: {
+        id: user.id,
+        name: user.name,
+        email: isAnonymous ? null : user.email,
+        role: user.role,
+      },
+      booking,
+      qrData: `GYMORA-BOOKING-${booking.id}`,
+    };
   }
 }
 

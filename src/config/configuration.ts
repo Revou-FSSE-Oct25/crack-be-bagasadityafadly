@@ -9,7 +9,7 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
   },
   frontend: {
-    url: process.env.FRONTEND_URL ?? 'http://localhost:3001',
+    url: process.env.FRONTEND_URL ?? 'http://localhost:3002',
   },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,

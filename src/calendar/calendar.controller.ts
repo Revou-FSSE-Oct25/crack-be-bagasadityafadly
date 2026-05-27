@@ -60,7 +60,7 @@ export class CalendarController {
     await this.calendarService.handleOAuthCallback(code, userId);
 
     // In a real app, redirect to the frontend here:
-    // return { url: 'http://localhost:3001/settings?calendar=connected' }
+    // return { url: 'http://localhost:3002/settings?calendar=connected' }
     return {
       message: 'Google Calendar connected successfully',
       hint: 'In production, redirect to frontend settings page here',
