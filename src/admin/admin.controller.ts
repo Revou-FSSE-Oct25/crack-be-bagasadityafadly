@@ -2,6 +2,7 @@ import {
   Controller, Get, Patch, Post, Delete,
   Param, Body, Query, UseGuards, ParseIntPipe, DefaultValuePipe,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -17,6 +18,8 @@ import {
   UpdateUserRoleDto,
 } from './dto/admin.dto';
 
+@ApiTags('Admin')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN)
@@ -26,6 +29,7 @@ export class AdminController {
   // ── Stats ────────────────────────────────────────────────────────────────
 
   @Get('stats')
+  @ApiOperation({ summary: 'Dashboard stats (users, bookings, revenue)' })
   getStats() {
     return this.adminService.getStats();
   }
@@ -33,21 +37,30 @@ export class AdminController {
   // ── Users ────────────────────────────────────────────────────────────────
 
   @Get('users')
+  @ApiOperation({ summary: 'List all users with their active membership' })
   findAllUsers() {
     return this.adminService.findAllUsers();
   }
 
   @Patch('users/:id/role')
+  @ApiOperation({ summary: '⭐ Change a user role (ADMIN / MEMBER / NON_MEMBER)' })
+  @ApiParam({ name: 'id', description: 'User ID (from GET /admin/users)' })
+  @ApiBody({ schema: { example: { role: 'ADMIN' } } })
   updateUserRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
     return this.adminService.updateUserRole(id, dto.role);
   }
 
   @Post('users/:id/membership')
+  @ApiOperation({ summary: 'Assign a membership plan to a user' })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiBody({ schema: { example: { type: 'BASIC', durationDays: 30 } } })
   assignMembership(@Param('id') id: string, @Body() dto: AssignMembershipDto) {
     return this.adminService.assignMembership(id, dto.type, dto.durationDays);
   }
 
   @Patch('users/:id/deactivate')
+  @ApiOperation({ summary: 'Deactivate (soft-delete) a user account' })
+  @ApiParam({ name: 'id', description: 'User ID' })
   deactivateUser(@Param('id') id: string) {
     return this.adminService.deactivateUser(id);
   }

@@ -37,14 +37,28 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-  .setTitle('Gym API')
-  .setDescription('API docs')
-  .setVersion('1.0')
-  .build();
+    .setTitle('🏋 Gymora API')
+    .setDescription(
+      '**Gymora** gym management REST API.\n\n' +
+      '### How to authenticate\n' +
+      '1. Call `POST /api/v1/auth/login` with `{"email":"admin@gymora.com","password":"Admin123!"}`\n' +
+      '2. Copy the `access_token` from the response\n' +
+      '3. Click **Authorize 🔓** at the top-right and paste the token\n\n' +
+      '### Change a user\'s role\n' +
+      'Use `PATCH /api/v1/admin/users/{id}/role` with body `{"role":"ADMIN"}` to promote any account.',
+    )
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
+      'JWT-auth',
+    )
+    .build();
 
   const document = SwaggerModule.createDocument(app, config);
 
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
   
   // Global error handler
   app.useGlobalFilters(new AllExceptionsFilter());
