@@ -69,20 +69,26 @@ export class AdminService {
     // ADMIN: can only promote NON_MEMBER → MEMBER (nothing else)
 
     if (requesterRole === Role.ADMIN) {
-      // ADMIN cannot change their own role (safety — avoids self-demotion)
+      // ADMIN cannot change their own role
       if (requesterId === targetUserId) {
         throw new ForbiddenException('You cannot change your own role');
       }
-      // ADMIN can only set the target role to MEMBER
-      if (newRole !== Role.MEMBER) {
-        throw new ForbiddenException('Admins can only promote NON_MEMBER users to MEMBER');
+
+      // ADMIN can only set roles within the member/non-member tier
+      const allowedTargetRoles: Role[] = [Role.MEMBER, Role.NON_MEMBER];
+      if (!allowedTargetRoles.includes(newRole)) {
+        throw new ForbiddenException(
+          'Admins can only change roles between NON_MEMBER and MEMBER. Contact a Super Administrator to assign ADMIN or ADMINISTRATOR roles.',
+        );
       }
-      // ADMIN can only promote from NON_MEMBER (not demote an existing MEMBER or ADMIN)
+
+      // ADMIN cannot manage other ADMIN or ADMINISTRATOR accounts
       const target = await this.prisma.user.findUnique({ where: { id: targetUserId } });
       if (!target) throw new NotFoundException('User not found');
-      if (target.role !== Role.NON_MEMBER) {
-        throw new ForbiddenException('Admins can only promote NON_MEMBER users to MEMBER');
+      if (target.role === Role.ADMIN || target.role === Role.ADMINISTRATOR) {
+        throw new ForbiddenException('Admins cannot change the role of other admin accounts');
       }
+
       return this.prisma.user.update({
         where: { id: targetUserId },
         data: { role: newRole },
@@ -155,10 +161,22 @@ export class AdminService {
         user: { select: { id: true, name: true, email: true, role: true } },
         schedule: {
           select: {
-            class: { select: { name: true } },
-            trainer: { select: { name: true } },
+            id: true,
+            startTime: true,
+            endTime: true,
+            roomOrZone: true,
+            class: {
+              select: {
+                name: true,
+                durationMinutes: true,
+                difficulty: true,
+                caloriesEstimate: true,
+              },
+            },
+            trainer: { select: { name: true, specialty: true } },
           },
         },
+        trainer: { select: { id: true, name: true, specialty: true } },
       },
     });
   }
