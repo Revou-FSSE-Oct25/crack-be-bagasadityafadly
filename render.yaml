@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: gymora-api
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # Set these manually in the Render dashboard:
+      # DATABASE_URL  →  your Supabase connection string
+      # JWT_SECRET    →  a long random string
+      # FRONTEND_URL  →  your Vercel frontend URL
