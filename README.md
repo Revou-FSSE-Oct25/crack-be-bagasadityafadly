@@ -1,98 +1,187 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🏋 Gymora — Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> REST API for the Gymora gym management platform, built with NestJS + Prisma + PostgreSQL
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Frontend Live Demo → [https://crack-fe-bagasadityafadly.vercel.app](https://crack-fe-bagasadityafadly.vercel.app)**
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Overview
 
-## Project setup
+This is the backend API for Gymora, a smart gym booking and management platform. It handles authentication, membership management, class/schedule/trainer management, booking with capacity enforcement, XP & streak tracking, and admin operations.
 
-```bash
-$ npm install
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | NestJS 11 |
+| Language | TypeScript |
+| ORM | Prisma v5 |
+| Database | PostgreSQL (Supabase) |
+| Auth | JWT (passport-jwt) |
+| Password | bcrypt |
+| Validation | class-validator + class-transformer |
+| Deployment | Render |
+
+---
+
+## API Modules
+
+| Module | Base Path | Description |
+|--------|-----------|-------------|
+| Auth | `/api/v1/auth` | Register, login, forgot/reset password |
+| Users | `/api/v1/users` | Profile, update |
+| Bookings | `/api/v1/bookings` | Create, cancel, list — GYM / CLASS / PT |
+| Bookings (Guest) | `/api/v1/bookings/guest` | Public booking without login |
+| Classes | `/api/v1/classes` | List gym classes |
+| Schedules | `/api/v1/schedules` | List upcoming sessions |
+| Trainers | `/api/v1/trainers` | List active trainers |
+| XP | `/api/v1/xp` | User XP, level, leaderboard |
+| Recommendations | `/api/v1/recommendations` | Personalised class suggestions |
+| Calendar | `/api/v1/calendar` | Google Calendar OAuth integration |
+| Admin | `/api/v1/admin` | Full admin CRUD (ADMIN role only) |
+
+---
+
+## Key Design Decisions
+
+### Atomic capacity enforcement
+CLASS and PT bookings use `prisma.$transaction` to read + write atomically. A `@@unique([userId, scheduleId])` constraint on the Booking model is a secondary safeguard against duplicate bookings.
+
+### Guest booking (no login)
+`POST /bookings/guest` is a public endpoint that supports three paths:
+- **Anonymous** — name only, no email → creates a throwaway user, returns QR code, no JWT
+- **Register** — email + password (new account) → creates account, returns JWT
+- **Login** — email + password (existing account) → verifies, returns JWT
+
+### Role-based access
+Three roles: `NON_MEMBER`, `MEMBER`, `ADMIN`. Guards enforce:
+- GYM bookings: any authenticated user
+- CLASS/PT bookings: `MEMBER` or `ADMIN` only
+- Admin endpoints: `ADMIN` only
+
+### Calendar sync (best-effort)
+Google Calendar events are created after the booking transaction commits. Failure to sync never rolls back or hides the booking.
+
+---
+
+## Project Structure
+
+```
+src/
+├── admin/          # Admin CRUD: users, bookings, classes, schedules, trainers, memberships
+├── auth/           # JWT auth, guards, decorators, forgot/reset password
+├── bookings/       # Booking service + guest booking
+├── calendar/       # Google Calendar OAuth + event management
+├── classes/        # GymClass entity
+├── config/         # Configuration factory (reads .env)
+├── prisma/         # PrismaService (global)
+├── recommendations/# Personalised class recommendations
+├── schedules/      # Schedule entity + spots-left calculation
+├── trainers/       # Trainer entity
+├── users/          # User profile
+└── xp/             # XP, level, streak, leaderboard
+prisma/
+├── schema.prisma   # Full database schema
+└── seed.ts         # Dev seed: admin, 3 trainers, 4 classes, 15 schedules
 ```
 
-## Compile and run the project
+---
+
+## Local Development
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL running locally (or a Supabase/Neon connection string)
+
+### Setup
 
 ```bash
-# development
-$ npm run start
+# 1. Install dependencies
+npm install
 
-# watch mode
-$ npm run start:dev
+# 2. Create environment file
+cp .env.example .env
 
-# production mode
-$ npm run start:prod
+# 3. Edit .env with your values
+DATABASE_URL="postgresql://user:password@localhost:5432/gymora"
+JWT_SECRET="your-secret-key"
+FRONTEND_URL="http://localhost:3002"
+
+# 4. Push schema to database
+npx prisma db push
+
+# 5. Seed database (creates admin + sample data)
+npx prisma db seed
+
+# 6. Start development server
+npm run start:dev
 ```
 
-## Run tests
+API available at [http://localhost:3000/api/v1](http://localhost:3000/api/v1)
+
+### Default Seeded Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@gymora.com` | `Admin123!` |
+| Member | `member@gymora.com` | `Member123!` |
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | Secret key for signing JWT tokens |
+| `JWT_EXPIRES_IN` | ✅ | Token expiry e.g. `7d` |
+| `NODE_ENV` | ✅ | `development` or `production` |
+| `PORT` | | Server port, default `3000` |
+| `FRONTEND_URL` | | CORS allowed origin |
+| `GOOGLE_CLIENT_ID` | | For Google Calendar integration |
+| `GOOGLE_CLIENT_SECRET` | | For Google Calendar integration |
+| `GOOGLE_REDIRECT_URI` | | OAuth callback URL |
+
+---
+
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:dev    # Development with hot reload
+npm run build        # Compile TypeScript → dist/
+npm run start:prod   # Run compiled production build
+npx prisma studio    # Open Prisma GUI database browser
+npx prisma db push   # Push schema changes (no migration history)
+npx prisma db seed   # Run seed script
 ```
+
+---
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+This API is deployed on **Render** (free tier) connected to a **Supabase** PostgreSQL database.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+To deploy your own instance:
+1. Fork this repo
+2. Create a project on [Render](https://render.com)
+3. Set build command: `npm install && npm run build`
+4. Set start command: `npm run start:prod`
+5. Add environment variables in Render dashboard
+6. Run `npx prisma db push` and `npx prisma db seed` once via Render Shell
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+---
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Related
 
-## Resources
+- **Frontend** → [crack-fe-bagasadityafadly](../crack-fe-bagasadityafadly) — Next.js on Vercel
+- **Live Frontend** → [https://crack-fe-bagasadityafadly.vercel.app](https://crack-fe-bagasadityafadly.vercel.app)
+- **Database** — Supabase (PostgreSQL)
 
-Check out a few resources that may come in handy when working with NestJS:
+---
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Author
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+**Bagas Aditya Fadly** — Built for RevoU Crack Assignment
