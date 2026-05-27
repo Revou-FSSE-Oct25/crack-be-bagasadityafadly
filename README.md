@@ -75,7 +75,7 @@ Gymora is a full-stack gym management application. This repository contains the 
 ## Database Design
 
 > 📸 **Place your database schema screenshot below.**  
-> Recommended: open **Prisma Studio** (`npx prisma studio`) or export an ERD from [dbdiagram.io](https://dbdiagram.io), take a screenshot, save it as `docs/db-schema.png`, and replace the placeholder below.
+> Recommended: open **Prisma Studio** (`npx prisma studio`) or export an ERD from [dbdiagram.io](https://dbdiagram.io), take a screenshot, save it as ``, and replace the placeholder below.
 
 <!-- ================================================================
      SCREENSHOT PLACEHOLDER
@@ -863,7 +863,7 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'admin@gymora.com';
 |---|---|
 | **Frontend repo** | [crack-fe-bagasadityafadly](../crack-fe-bagasadityafadly) — Next.js 15 on Vercel |
 | **Live frontend** | [https://crack-fe-bagasadityafadly.vercel.app](https://crack-fe-bagasadityafadly.vercel.app) |
-| **Live API docs** | [https://gymora-api.onrender.com/api/docs](https://gymora-api.onrender.com/api/docs) |
+| **Live API docs** | [https://crack-be-bagasadityafadly-1.onrender.com](https://crack-be-bagasadityafadly-1.onrender.com) |
 | **Database** | Supabase — PostgreSQL 15, AWS ap-southeast-2 |
 
 ---
